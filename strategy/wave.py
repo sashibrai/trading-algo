@@ -822,7 +822,7 @@ class WaveStrategy:
             if status == 'COMPLETE' or status == 2: # TODO: Check this - this is for fyers and zerodha
                 logger.info(f"Order {order_id} executed successfully")
                 self._complete_order(order_id)
-                self.order_tracker.record_order_complete(order_id, order_info['transaction_type'])
+                # self.order_tracker.record_order_complete(order_id, order_info['transaction_type']) # This was the incorrect method
                 self.prev_wave_buy_price = None
                 self.prev_wave_sell_price = None
                 
