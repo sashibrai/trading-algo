@@ -53,4 +53,15 @@ def register_default_brokers() -> None:
         logging.error("Error registering fyrodha driver", exc_info=True)
         pass
 
+    try:
+        from .integrations.paper.driver import PaperBroker
+        from .integrations.zerodha.driver import ZerodhaDriver
+        import os
+
+        live_broker_name = os.getenv("PAPER_LIVE_BROKER", "zerodha")
+        live_broker = BrokerRegistry.create(live_broker_name)
+        BrokerRegistry.register("paper", lambda: PaperBroker(live_broker))
+    except Exception:
+        logging.error("Error registering paper driver", exc_info=True)
+        pass
 
