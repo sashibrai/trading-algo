@@ -1,6 +1,7 @@
 import os, sys
 import logging
 import logging.handlers
+import io
 
 
 def setup_logging():
@@ -30,6 +31,12 @@ def setup_logging():
     logger.addHandler(file_handler)
 
     # Optionally add a console handler at a higher level (e.g., INFO)
+    # Force UTF-8 encoding for the console to prevent UnicodeEncodeError on Windows
+    if sys.stdout.encoding != 'utf-8':
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    if sys.stderr.encoding != 'utf-8':
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
     console_formatter = logging.Formatter(

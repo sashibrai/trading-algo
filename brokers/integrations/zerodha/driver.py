@@ -96,8 +96,10 @@ class ZerodhaDriver(BrokerDriver):
                         if token:
                             kite2.set_access_token(token)
                             self._kite = kite2
-                except Exception:
+                except Exception as e:
                     # Keep unauthenticated if manual flow fails
+                    import logging
+                    logging.error("Failed to generate session during manual login: %s", e, exc_info=True)
                     pass
 
     def _authenticate_via_totp(self) -> Optional[Any]:
