@@ -358,54 +358,65 @@ class WaveStrategy:
         """Execute buy and sell orders based on restrictions"""
         sell_order_id = -1
         logger.info(f"Executing orders for {symbol} | Restrictions - Buy: {restrict_buy_order}, Sell: {restrict_sell_order}")
+
+        is_paper_trade = os.getenv("BROKER_NAME") == "paper"
+
         if restrict_sell_order == 0:
             req = OrderRequest(
                 symbol=symbol, exchange=Exchange.NFO, transaction_type=TransactionType.SELL,
                 quantity=self.sell_quantity, product_type=ProductType.MARGIN, order_type=OrderType.LIMIT,
                 price=final_sell_price, tag=self.tag
-            ) # TODO: Variety Supported is only Regular for now
+            )
             sell_order_resp = self.broker.place_order(req)
-
             logger.info("Sell Order Response - {}".format(sell_order_resp))
-
             sell_order_id = sell_order_resp.order_id
-            if sell_order_id not in self.orders:
-                self.handle_order_update_call_tracker[sell_order_id] = False
 
-            if sell_order_id != -1:
+            if sell_order_id and sell_order_id != -1:
                 logger.info(f"Placed SELL order {sell_order_id} for {self.sell_quantity} @ {final_sell_price}")
                 self.add_order_to_list(sell_order_id, final_sell_price, self.sell_quantity, "SELL", symbol, -1)
-                logger.info(f"handle_order_update_call_tracker: {self.handle_order_update_call_tracker}")
-                if not self.handle_order_update_call_tracker[sell_order_id]:
-                    self.handle_order_update(self.handle_order_update_call_tracker_response_dict[sell_order_id])
 
-        # only when the sell order has been placed or sell order was restricred and buy order was not restricted
+                if is_paper_trade:
+                    synthetic_update = {'order_id': sell_order_id, 'status': 'COMPLETE', 'tradingsymbol': symbol, 'tag': self.tag}
+                    self.handle_order_update(synthetic_update)
+                else:
+                    self.handle_order_update_call_tracker[sell_order_id] = False
+                    if not self.handle_order_update_call_tracker.get(sell_order_id, True):
+                        self.handle_order_update(self.handle_order_update_call_tracker_response_dict[sell_order_id])
+
+        # only when the sell order has been placed or sell order was restricted and buy order was not restricted
         if (restrict_sell_order == 1 or sell_order_id != -1) and restrict_buy_order == 0:
             req = OrderRequest(
                 symbol=symbol, exchange=Exchange.NFO, transaction_type=TransactionType.BUY,
                 quantity=self.buy_quantity, product_type=ProductType.MARGIN, order_type=OrderType.LIMIT,
                 price=final_buy_price, tag=self.tag
-            ) # TODO: Variety Supported is only Regular for now
+            )
             buy_order_resp = self.broker.place_order(req)
             logger.info("Buy Order Response - {}".format(buy_order_resp))
             buy_order_id = buy_order_resp.order_id
-            self.handle_order_update_call_tracker[buy_order_id] = False
-            if buy_order_id != -1:
+
+            if buy_order_id and buy_order_id != -1:
                 logger.info(f"Placed BUY order {buy_order_id} for {self.buy_quantity} @ {final_buy_price}")
-                if sell_order_id != -1:
-                    # Only if sell order is present in the orders list, then add buy order id as associated order id
-                    # if sell order is rejected or cancelled - this is not done
-                    if sell_order_id in self.orders:
-                        self.add_order_to_list(sell_order_id, final_sell_price, self.sell_quantity, "SELL", symbol, buy_order_id)
+                if sell_order_id != -1 and sell_order_id in self.orders:
+                    self.orders[sell_order_id]['associated_order'] = buy_order_id
+
                 self.add_order_to_list(buy_order_id, final_buy_price, self.buy_quantity, "BUY", symbol, sell_order_id)
-                logger.info(f"handle_order_update_call_tracker: {self.handle_order_update_call_tracker}")
-                if not self.handle_order_update_call_tracker[buy_order_id]:
-                    self.handle_order_update(self.handle_order_update_call_tracker_response_dict[buy_order_id])
-            else:
+
+                if is_paper_trade:
+                    synthetic_update = {'order_id': buy_order_id, 'status': 'COMPLETE', 'tradingsymbol': symbol, 'tag': self.tag}
+                    self.handle_order_update(synthetic_update)
+                else:
+                    self.handle_order_update_call_tracker[buy_order_id] = False
+                    if not self.handle_order_update_call_tracker.get(buy_order_id, True):
+                        self.handle_order_update(self.handle_order_update_call_tracker_response_dict[buy_order_id])
+
+            elif sell_order_id != -1:
                 logger.warning(f"Buy order failed, cancelling associated sell order {sell_order_id}")
                 self._remove_order(sell_order_id)
-                del self.handle_order_update_call_tracker[sell_order_id]
-                del self.handle_order_update_call_tracker_response_dict[sell_order_id]
+                if not is_paper_trade:
+                    if sell_order_id in self.handle_order_update_call_tracker:
+                        del self.handle_order_update_call_tracker[sell_order_id]
+                    if sell_order_id in self.handle_order_update_call_tracker_response_dict:
+                        del self.handle_order_update_call_tracker_response_dict[sell_order_id]
 
     def add_order_to_list(self, order_id, price, quantity, transaction_type, symbol, associated_order_id):
         now = datetime.datetime.now()
@@ -811,7 +822,7 @@ class WaveStrategy:
             if status == 'COMPLETE' or status == 2: # TODO: Check this - this is for fyers and zerodha
                 logger.info(f"Order {order_id} executed successfully")
                 self._complete_order(order_id)
-                self.order_tracker.record_order_complete(order_id, order_info['transaction_type'])
+                # self.order_tracker.record_order_complete(order_id, order_info['transaction_type']) # This was the incorrect method
                 self.prev_wave_buy_price = None
                 self.prev_wave_sell_price = None
                 
