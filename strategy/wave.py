@@ -358,54 +358,62 @@ class WaveStrategy:
         """Execute buy and sell orders based on restrictions"""
         sell_order_id = -1
         logger.info(f"Executing orders for {symbol} | Restrictions - Buy: {restrict_buy_order}, Sell: {restrict_sell_order}")
+
         if restrict_sell_order == 0:
             req = OrderRequest(
                 symbol=symbol, exchange=Exchange.NFO, transaction_type=TransactionType.SELL,
                 quantity=self.sell_quantity, product_type=ProductType.MARGIN, order_type=OrderType.LIMIT,
                 price=final_sell_price, tag=self.tag
-            ) # TODO: Variety Supported is only Regular for now
+            )
             sell_order_resp = self.broker.place_order(req)
-
             logger.info("Sell Order Response - {}".format(sell_order_resp))
-
             sell_order_id = sell_order_resp.order_id
-            if sell_order_id not in self.orders:
-                self.handle_order_update_call_tracker[sell_order_id] = False
 
-            if sell_order_id != -1:
+            if sell_order_id and sell_order_id != -1:
                 logger.info(f"Placed SELL order {sell_order_id} for {self.sell_quantity} @ {final_sell_price}")
                 self.add_order_to_list(sell_order_id, final_sell_price, self.sell_quantity, "SELL", symbol, -1)
-                logger.info(f"handle_order_update_call_tracker: {self.handle_order_update_call_tracker}")
-                if not self.handle_order_update_call_tracker[sell_order_id]:
-                    self.handle_order_update(self.handle_order_update_call_tracker_response_dict[sell_order_id])
 
-        # only when the sell order has been placed or sell order was restricred and buy order was not restricted
+                # For paper broker, simulate immediate completion since there is no websocket update
+                if os.getenv("BROKER_NAME") == "paper":
+                    synthetic_update = {
+                        'order_id': sell_order_id,
+                        'status': 'COMPLETE',
+                        'tradingsymbol': symbol,
+                        'tag': self.tag
+                    }
+                    self.handle_order_update(synthetic_update)
+
+        # only when the sell order has been placed or sell order was restricted and buy order was not restricted
         if (restrict_sell_order == 1 or sell_order_id != -1) and restrict_buy_order == 0:
             req = OrderRequest(
                 symbol=symbol, exchange=Exchange.NFO, transaction_type=TransactionType.BUY,
                 quantity=self.buy_quantity, product_type=ProductType.MARGIN, order_type=OrderType.LIMIT,
                 price=final_buy_price, tag=self.tag
-            ) # TODO: Variety Supported is only Regular for now
+            )
             buy_order_resp = self.broker.place_order(req)
             logger.info("Buy Order Response - {}".format(buy_order_resp))
             buy_order_id = buy_order_resp.order_id
-            self.handle_order_update_call_tracker[buy_order_id] = False
-            if buy_order_id != -1:
+
+            if buy_order_id and buy_order_id != -1:
                 logger.info(f"Placed BUY order {buy_order_id} for {self.buy_quantity} @ {final_buy_price}")
-                if sell_order_id != -1:
-                    # Only if sell order is present in the orders list, then add buy order id as associated order id
-                    # if sell order is rejected or cancelled - this is not done
-                    if sell_order_id in self.orders:
-                        self.add_order_to_list(sell_order_id, final_sell_price, self.sell_quantity, "SELL", symbol, buy_order_id)
+                if sell_order_id != -1 and sell_order_id in self.orders:
+                    # Associate the orders
+                    self.orders[sell_order_id]['associated_order'] = buy_order_id
+
                 self.add_order_to_list(buy_order_id, final_buy_price, self.buy_quantity, "BUY", symbol, sell_order_id)
-                logger.info(f"handle_order_update_call_tracker: {self.handle_order_update_call_tracker}")
-                if not self.handle_order_update_call_tracker[buy_order_id]:
-                    self.handle_order_update(self.handle_order_update_call_tracker_response_dict[buy_order_id])
-            else:
+
+                # For paper broker, simulate immediate completion
+                if os.getenv("BROKER_NAME") == "paper":
+                    synthetic_update = {
+                        'order_id': buy_order_id,
+                        'status': 'COMPLETE',
+                        'tradingsymbol': symbol,
+                        'tag': self.tag
+                    }
+                    self.handle_order_update(synthetic_update)
+            elif sell_order_id != -1:
                 logger.warning(f"Buy order failed, cancelling associated sell order {sell_order_id}")
                 self._remove_order(sell_order_id)
-                del self.handle_order_update_call_tracker[sell_order_id]
-                del self.handle_order_update_call_tracker_response_dict[sell_order_id]
 
     def add_order_to_list(self, order_id, price, quantity, transaction_type, symbol, associated_order_id):
         now = datetime.datetime.now()

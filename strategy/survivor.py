@@ -878,7 +878,7 @@ PARAMETER GROUPS:
         print(f"• CE Sells triggered when NIFTY falls >{config.get('ce_gap', 'N/A')} points") 
         print(f"• PE strikes selected ~{config.get('pe_symbol_gap', 'N/A')} points below spot")
         print(f"• CE strikes selected ~{config.get('ce_symbol_gap', 'N/A')} points above spot")
-        print(f"• Minimum option premium: ₹{config.get('min_price_to_sell', 'N/A')}")
+        print(f"• Minimum option premium: Rs. {config.get('min_price_to_sell', 'N/A')}")
         print(f"• Maximum position multiplier: {config.get('sell_multiplier_threshold', 'N/A')}x")
         print("="*80)
 
@@ -1053,7 +1053,7 @@ PARAMETER GROUPS:
     logger.info(f"  Gap Triggers - PE: {config['pe_gap']}, CE: {config['ce_gap']}")
     logger.info(f"  Strike Selection - PE: -{config['pe_symbol_gap']}, CE: +{config['ce_symbol_gap']}")
     logger.info(f"  Base Quantities - PE: {config['pe_quantity']}, CE: {config['ce_quantity']}")
-    logger.info(f"  Risk Limits - Min Premium: ₹{config['min_price_to_sell']}, Max Multiplier: {config['sell_multiplier_threshold']}x")
+    logger.info(f"  Risk Limits - Min Premium: Rs. {config['min_price_to_sell']}, Max Multiplier: {config['sell_multiplier_threshold']}x")
 
     # ==========================================================================
     # SECTION 4: TRADING INFRASTRUCTURE SETUP
@@ -1076,7 +1076,7 @@ PARAMETER GROUPS:
     try:
         quote_data = broker.get_quote(config['index_symbol'])
         instrument_token = config['index_symbol'] # TODO: Make Sure config['index_symbol'] is correct as per fyers format if not working - Need to standardize the format
-        logger.info(f"✓ Index instrument token obtained: {instrument_token}")
+        logger.info(f"Index instrument token obtained: {instrument_token}")
     except Exception as e:
         logger.error(f"Failed to get instrument token for {config['index_symbol']}: {e}")
         sys.exit(1)
