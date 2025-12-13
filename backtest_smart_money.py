@@ -17,7 +17,7 @@ def load_data(filepath):
         df = pd.read_csv(filepath)
         # Parse date
         # auto-detect format?
-        df['ts'] = pd.to_datetime(df['date'])
+        df['ts'] = pd.to_datetime(df['date'], dayfirst=True)
         df.set_index('ts', inplace=True)
 
         # Ensure numeric
